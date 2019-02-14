@@ -1,0 +1,55 @@
+#!/bin/sh
+#
+# MyRPI script to control the usb connected fan on
+# the 2nd port using uhubctl
+#
+# Cornjob to run every 2 hours
+# 0 */2 * * *  /bin/pfan >/dev/null 2>&1
+#
+# Valid inputs:
+# ON  - 1
+# OFF - 0
+#
+
+out_chk() {
+    if [ $1 -eq 0 ] && [ $2 -eq 0 ]; then
+        echo "Fan turned OFF"
+    elif [ $1 -eq 0 ] && [ $2 -eq 1 ]; then
+        echo "Fan turned ON"
+    elif [ $2 -ne 0 ] || [ $2 -ne 1 ]; then
+        echo "-------------------------"
+        echo "No valid arg provided!"
+        echo " "
+        echo "Nothing to do here!"
+        echo "-------------------------"
+    else
+        echo "Something went wrong"
+    fi
+}
+
+if [ -z $1 ]; then
+    echo "Checking temp to decide!!"
+    get_temp=`vcgencmd measure_temp | cut -d '=' -f 2,3 | cut -d "'" -f 1,1`
+
+    echo "Current Temp: $get_temp"
+
+    if `echo "$get_temp >= 50.0" | bc -l` > /dev/null 2> /dev/null
+    then
+	echo "PI Hot"
+	uhub -a 1 -p 2 > /dev/null 2> /dev/null
+	chk=$?
+	prov_in=1
+	out_chk $chk $prov_in
+    else
+	echo "alight kul"
+	uhub -a 0 -p 2 > /dev/null 2> /dev/null
+	chk=$?
+        prov_in=0
+        out_chk $chk $prov_in
+    fi
+else
+    prov_in=$1
+    uhub -a $prov_in -p 2 > /dev/null 2> /dev/null
+    chk=$?
+    out_chk $chk $prov_in
+fi
