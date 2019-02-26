@@ -11,6 +11,18 @@
 # OFF - 0
 #
 
+#DEFAULTS
+treshold=50.0
+
+fan_state() {
+    fs=`uhub | awk 'FNR == 3 {print $4}'`
+    if [ $fs = 'power' ]; then
+	return 1
+    else
+	return 0
+    fi
+}
+
 out_chk() {
     if [ $1 -eq 0 ] && [ $2 -eq 0 ]; then
         echo "Fan turned OFF"
@@ -33,23 +45,51 @@ if [ -z $1 ]; then
 
     echo "Current Temp: $get_temp"
 
-    if `echo "$get_temp >= 50.0" | bc -l` > /dev/null 2> /dev/null
-    then
+    temp_chk=`echo "$get_temp >= $treshold" | bc -l`
+    if [ $temp_chk -eq 1 ]; then
 	echo "PI Hot"
-	uhub -a 1 -p 2 > /dev/null 2> /dev/null
-	chk=$?
-	prov_in=1
-	out_chk $chk $prov_in
+	fan_state
+	chk_state=$?
+	if [ $chk_state -eq 1 ]; then
+	    echo "Fan is already running"
+	else
+	    uhub -a 1 -p 2 > /dev/null 2> /dev/null
+	    chk=$?
+	    prov_in=1
+	    out_chk $chk $prov_in
+	fi
     else
 	echo "alight kul"
-	uhub -a 0 -p 2 > /dev/null 2> /dev/null
-	chk=$?
-        prov_in=0
-        out_chk $chk $prov_in
+	fan_state
+        chk_state=$?
+        if [ $chk_state -eq 0 ]; then
+		echo "Fan is already OFF"
+	else
+	    uhub -a 0 -p 2 > /dev/null 2> /dev/null
+	    chk=$?
+            prov_in=0
+            out_chk $chk $prov_in
+	fi
+    fi
+elif [ $1 = 'state' ]; then
+    fan_state
+    cur_state=$?
+    if [ $cur_state -eq 1 ]; then
+        echo "Current fan state is: ON"
+    else
+	echo "Current fan state is: OFF"
     fi
 else
     prov_in=$1
-    uhub -a $prov_in -p 2 > /dev/null 2> /dev/null
-    chk=$?
-    out_chk $chk $prov_in
+    fan_state
+    chk_state=$?
+    if [ $chk_state -eq 1 ] && [ $prov_in -eq 1 ]; then
+	echo "Fan is already running"
+    elif [ $chk_state -eq 0 ] && [ $prov_in -eq 0 ]; then
+        echo "Fan is already OFF"
+    else
+        uhub -a $prov_in -p 2 > /dev/null 2> /dev/null
+        chk=$?
+        out_chk $chk $prov_in
+    fi
 fi
